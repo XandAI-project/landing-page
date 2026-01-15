@@ -1,0 +1,298 @@
+---
+title: "Building XandAI CLI: An Offline AI Coding Assistant"
+date: "2026-01-12"
+description: "How we built a terminal-based AI coding assistant that works entirely offline using local models."
+author: "XandAI"
+tags: ["Python", "CLI", "Ollama", "DevTools"]
+---
+
+## The Problem
+
+Most AI coding assistants require internet connectivity and send your code to external servers. For sensitive projects or offline work, this is a non-starter.
+
+## Our Solution: XandAI CLI
+
+[XandAI CLI](https://github.com/XandAI-project/Xandai-CLI) is a terminal-based AI assistant that runs entirely locally using Ollama or LM Studio.
+
+## Architecture
+
+The tool is built with a clean architecture:
+
+```
+xandai/
+├── cli.py          # Command interface
+├── ai_engine.py    # Model communication
+├── context.py      # Code context gathering
+└── utils.py        # Helper functions
+```
+
+### Core Components
+
+**1. Context Gathering**
+
+The assistant needs to understand your project:
+
+```python
+def gather_context(directory: str) -> dict:
+    """Gather relevant project context"""
+    context = {
+        'files': scan_directory(directory),
+        'git_status': get_git_status(),
+        'dependencies': read_dependencies(),
+        'recent_changes': get_recent_commits()
+    }
+    return context
+```
+
+**2. Model Interface**
+
+We support both Ollama and LM Studio:
+
+```python
+class AIEngine:
+    def __init__(self, provider='ollama', model='codellama'):
+        self.provider = provider
+        self.model = model
+        self.api_url = self._get_api_url()
+    
+    def generate(self, prompt: str, context: dict) -> str:
+        full_prompt = self._build_prompt(prompt, context)
+        response = requests.post(
+            f'{self.api_url}/generate',
+            json={'model': self.model, 'prompt': full_prompt}
+        )
+        return response.json()['response']
+```
+
+**3. CLI Commands**
+
+Simple, intuitive commands:
+
+```bash
+# Ask a question about your code
+xandai ask "How does authentication work?"
+
+# Generate code
+xandai generate "Create a user model with validation"
+
+# Explain a file
+xandai explain src/auth.py
+
+# Review changes
+xandai review
+```
+
+## Implementation Details
+
+### Smart Context
+
+We don't send the entire codebase to the model. Instead, we:
+
+1. Parse the query to identify relevant files
+2. Use file patterns and imports to find related code
+3. Include only relevant context (typically < 10 files)
+
+```python
+def find_relevant_files(query: str, project_files: list) -> list:
+    """Find files relevant to the query"""
+    relevant = []
+    
+    # Extract keywords from query
+    keywords = extract_keywords(query)
+    
+    # Score files based on relevance
+    for file in project_files:
+        score = calculate_relevance(file, keywords)
+        if score > THRESHOLD:
+            relevant.append((file, score))
+    
+    # Return top matches
+    return sorted(relevant, key=lambda x: x[1], reverse=True)[:10]
+```
+
+### Token Management
+
+Local models have context limits. We manage this carefully:
+
+```python
+def truncate_context(context: str, max_tokens: int = 4096) -> str:
+    """Ensure context fits within token limit"""
+    tokens = tokenize(context)
+    if len(tokens) <= max_tokens:
+        return context
+    
+    # Keep most important parts
+    return detokenize(tokens[:max_tokens])
+```
+
+### Streaming Responses
+
+For better UX, we stream responses:
+
+```python
+def stream_generate(prompt: str) -> Generator[str, None, None]:
+    """Stream response tokens as they're generated"""
+    response = requests.post(
+        f'{API_URL}/generate',
+        json={'model': MODEL, 'prompt': prompt, 'stream': True},
+        stream=True
+    )
+    
+    for line in response.iter_lines():
+        if line:
+            chunk = json.loads(line)
+            yield chunk['response']
+```
+
+## Performance Optimizations
+
+### 1. Model Preloading
+
+Keep the model warm:
+
+```python
+def preload_model():
+    """Keep model in memory for faster responses"""
+    requests.post(f'{API_URL}/generate', json={
+        'model': MODEL,
+        'prompt': '',
+        'keep_alive': '1h'
+    })
+```
+
+### 2. Caching
+
+Cache context between queries:
+
+```python
+class ContextCache:
+    def __init__(self, ttl=300):
+        self.cache = {}
+        self.ttl = ttl
+    
+    def get(self, key: str):
+        if key in self.cache:
+            value, timestamp = self.cache[key]
+            if time.time() - timestamp < self.ttl:
+                return value
+        return None
+    
+    def set(self, key: str, value: any):
+        self.cache[key] = (value, time.time())
+```
+
+### 3. Async Operations
+
+Don't block on I/O:
+
+```python
+import asyncio
+
+async def gather_context_async(directory: str):
+    """Gather context without blocking"""
+    tasks = [
+        scan_directory_async(directory),
+        get_git_status_async(),
+        read_dependencies_async()
+    ]
+    return await asyncio.gather(*tasks)
+```
+
+## Challenges and Solutions
+
+### Challenge 1: Large Codebases
+
+**Problem**: Context gathering is slow in large projects
+
+**Solution**: Use gitignore patterns and smart filtering
+
+```python
+def should_ignore(file_path: str) -> bool:
+    """Check if file should be ignored"""
+    ignore_patterns = [
+        'node_modules/', '__pycache__/', '.git/',
+        '*.pyc', '*.log', 'dist/', 'build/'
+    ]
+    return any(fnmatch.fnmatch(file_path, p) for p in ignore_patterns)
+```
+
+### Challenge 2: Model Quality
+
+**Problem**: Smaller local models aren't as capable as GPT-4
+
+**Solution**: Use specialized prompts and model selection
+
+```python
+MODEL_MAP = {
+    'code': 'codellama:13b',
+    'chat': 'mistral:latest',
+    'reasoning': 'mixtral:8x7b'
+}
+
+def select_model(task_type: str) -> str:
+    """Select best model for task"""
+    return MODEL_MAP.get(task_type, 'llama2')
+```
+
+### Challenge 3: Error Handling
+
+**Problem**: Model API might be unavailable
+
+**Solution**: Graceful fallbacks and retry logic
+
+```python
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+def generate_with_retry(prompt: str):
+    """Generate with automatic retry on failure"""
+    try:
+        return ai_engine.generate(prompt)
+    except requests.ConnectionError:
+        print("Model server unavailable, retrying...")
+        raise
+```
+
+## Usage Examples
+
+### Generate a REST API
+
+```bash
+xandai generate "Create a FastAPI endpoint for user CRUD operations with validation"
+```
+
+### Review Code
+
+```bash
+git diff | xandai review
+```
+
+### Explain Complex Code
+
+```bash
+xandai explain "What does this decorator do?" --file src/auth.py --line 45
+```
+
+## Future Improvements
+
+1. **RAG Integration**: Index entire codebase for better context
+2. **Multi-Model**: Use different models for different tasks
+3. **Learning**: Remember user preferences and project patterns
+4. **IDE Integration**: VSCode/Neovim plugins
+
+## Conclusion
+
+Building an offline AI assistant is not only possible but practical. With local models improving rapidly, the gap with cloud solutions is narrowing.
+
+The key is smart context management, good UX, and leveraging the right models for each task.
+
+## Try It
+
+```bash
+pip install xandai-cli
+xandai setup
+xandai ask "How do I use this?"
+```
+
+Check out the [source code](https://github.com/XandAI-project/Xandai-CLI) and contribute!
+

@@ -1,0 +1,178 @@
+---
+title: "Running AI Models Locally with Ollama"
+date: "2026-01-10"
+description: "A practical guide to running large language models on your own hardware using Ollama. No cloud required."
+author: "XandAI"
+tags: ["AI", "Ollama", "Self-Hosted", "LLM"]
+---
+
+## Why Run AI Models Locally?
+
+Running AI models locally gives you complete control over your data, reduces latency, and eliminates ongoing API costs. With tools like [Ollama](https://ollama.ai), this has become surprisingly accessible.
+
+## Prerequisites
+
+You'll need:
+
+- A machine with at least 8GB RAM (16GB+ recommended)
+- GPU optional but recommended for larger models
+- Basic terminal knowledge
+
+## Installing Ollama
+
+Installation is straightforward:
+
+```bash
+# macOS/Linux
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Windows
+# Download from ollama.ai
+```
+
+## Running Your First Model
+
+Start with a smaller model like Llama 2:
+
+```bash
+ollama run llama2
+```
+
+Ollama will download the model (about 3.8GB) and start an interactive session. You can now chat with the model directly in your terminal.
+
+## Available Models
+
+Ollama supports many models:
+
+- **llama2** (7B) - General purpose, good balance
+- **codellama** (7B) - Specialized for code
+- **mistral** (7B) - Strong performance, efficient
+- **mixtral** (8x7B) - Mixture of experts, powerful
+- **phi-2** (2.7B) - Microsoft's small but capable model
+
+List all available models:
+
+```bash
+ollama list
+```
+
+## Using the API
+
+Ollama provides a REST API that's compatible with OpenAI's format:
+
+```python
+import requests
+
+response = requests.post('http://localhost:11434/api/generate', json={
+    'model': 'llama2',
+    'prompt': 'Explain quantum computing in simple terms',
+    'stream': False
+})
+
+print(response.json()['response'])
+```
+
+## Performance Considerations
+
+### CPU vs GPU
+
+- **CPU**: Works but slower, good for smaller models
+- **GPU**: Significantly faster, essential for 13B+ models
+- **Apple Silicon**: Excellent performance with unified memory
+
+### Model Size
+
+Larger isn't always better:
+
+- 7B models: Fast, responsive, good for most tasks
+- 13B models: Better quality, still reasonable speed
+- 34B+ models: High quality, requires powerful hardware
+
+## Building Applications
+
+You can integrate Ollama into your applications:
+
+```typescript
+// Simple TypeScript wrapper
+async function generate(prompt: string, model = 'llama2') {
+  const response = await fetch('http://localhost:11434/api/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, prompt, stream: false })
+  })
+  
+  const data = await response.json()
+  return data.response
+}
+
+// Usage
+const answer = await generate('What is Rust?')
+console.log(answer)
+```
+
+## Advanced: Creating Custom Models
+
+You can create custom models with specific system prompts:
+
+```dockerfile
+FROM llama2
+
+SYSTEM """
+You are a helpful assistant specialized in Rust programming.
+You provide concise, accurate answers with code examples.
+"""
+```
+
+Save as `Modelfile` and create:
+
+```bash
+ollama create rust-expert -f Modelfile
+ollama run rust-expert
+```
+
+## Resource Management
+
+Monitor memory usage:
+
+```bash
+# Check running models
+ollama ps
+
+# Stop a model
+ollama stop llama2
+```
+
+Models are cached in memory for fast subsequent requests but will be unloaded automatically when idle.
+
+## Comparison with Cloud APIs
+
+**Pros of Local:**
+- No API costs
+- Complete privacy
+- No rate limits
+- Works offline
+- Lower latency (after model loads)
+
+**Cons:**
+- Initial setup required
+- Hardware limitations
+- Model loading time
+- Need to manage updates
+
+## Next Steps
+
+1. Experiment with different models for your use case
+2. Build a simple chat interface
+3. Integrate with your development workflow
+4. Explore model customization
+
+## Resources
+
+- [Ollama Documentation](https://ollama.ai)
+- [XandAI CLI](https://github.com/XandAI-project/Xandai-CLI) - Terminal AI assistant
+- [Model Library](https://ollama.ai/library)
+
+---
+
+Running AI locally is more accessible than ever. Start small, experiment, and scale as needed. The future of AI is distributed and self-hosted.
+

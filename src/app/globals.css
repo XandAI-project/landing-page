@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-background;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-border rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-border-light;
+}
+
+/* Code blocks styling */
+pre {
+  @apply overflow-x-auto rounded-lg border border-border p-4 my-4;
+}
+
+code {
+  @apply text-sm font-mono;
+}
+
+pre code {
+  @apply bg-transparent p-0 text-foreground;
+}
+
+/* Inline code */
+:not(pre) > code {
+  @apply bg-background-secondary px-1.5 py-0.5 rounded text-primary-light;
+}
+
+/* Selection */
+::selection {
+  @apply bg-primary/30 text-foreground;
+}
+
+/* Links */
+a {
+  @apply transition-colors duration-200;
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Focus visible */
+*:focus-visible {
+  @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background rounded;
+}
+

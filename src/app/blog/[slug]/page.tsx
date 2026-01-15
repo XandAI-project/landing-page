@@ -98,7 +98,7 @@ export default async function BlogPost({ params }: PageProps) {
             mdxOptions: {
               remarkPlugins: [remarkGfm],
               rehypePlugins: [
-                rehypeHighlight,
+                rehypeHighlight as any,
                 rehypeSlug,
                 [rehypeAutolinkHeadings, { behavior: 'wrap' }],
               ],
